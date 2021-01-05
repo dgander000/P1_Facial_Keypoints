@@ -12,43 +12,39 @@ class Net(nn.Module):
 
     def __init__(self):
         super(Net, self).__init__()
-        
-        ## TODO: Define all the layers of this CNN, the only requirements are:
-        ## 1. This network takes in a square (same width and height), grayscale image as input
-        ## 2. It ends with a linear layer that represents the keypoints
-        ## it's suggested that you make this last layer output 136 values, 2 for each of the 68 keypoint (x, y) pairs
 
-        # As an example, you've been given a convolutional layer, which you may (but don't have to) change:
-        # 1 input image channel (grayscale), 32 output channels/feature maps, 5x5 square convolution kernel
-        # Inputs size: 224 x 224
-        # Filter: 5 x 5 x 32
-        # Output size: (W-F)/S + 1 = (224-5)/1 + 1 = 220
-        # Output tensor: (32, 220, 220)
-        self.conv1 = nn.Conv2d(1, 32, 5)
-        
-        ## Note that among the layers to add, consider including:
-        # maxpooling layers, multiple conv layers, fully-connected layers, and other layers (such as dropout or batch normalization) to avoid overfitting
-       
-        # pool with kernel_size=2, stride=2
-        # Output tensor: (32, 110, 110)
-        self.pool = nn.MaxPool2d(2, 2)
-        
-        # second conv layer: 32 inputs, 64 outputs, 5x5 conv
-        ## output size = (W-F)/S + 1 = (110-5)/1 + 1 = 106
-        # the output tensor will have dimensions: (64, 106, 106)
-        self.conv2 = nn.Conv2d(32, 64, 5)
-        
-        # pool with kernel_size=2, stride=2
-        # Output tensor: (64, 53, 53)
+        # Input size: 224 x 224
 
-        # 64 outputs * the 5*5 filtered/pooled map size
-        self.fc1 = nn.Linear(64*53*53, 256)
-        
-        # dropout with p=0.4
-        self.fc1_drop = nn.Dropout(p=0.4)
-        
+        self.conv1 = nn.Conv2d(1, 32, 4, 1) # output size = (W-F)/S + 1 = (224-4)/1 + 1 = 221 -- (32, 221, 221)
+        self.actv1 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(2)        # (32, 110, 110)
+        self.drop1 = nn.Dropout(0.1)
+
+        self.conv2 = nn.Conv2d(32, 64, 3, 1) # output size = (W-F)/S + 1 = (110-3)/1 + 1 = 108 -- (64, 108, 108)
+        self.actv2 = nn.ReLU() 
+        self.pool2 = nn.MaxPool2d(2)         # (64, 54, 54)
+        self.drop2 = nn.Dropout(0.2)
+
+        self.conv3 = nn.Conv2d(64, 128, 2, 1) # output size = (W-F)/S + 1 = (54-2)/1 + 1 = 53 -- (128, 53, 53)
+        self.actv3 = nn.ReLU()
+        self.pool3 = nn.MaxPool2d(2)          # (128, 26, 26)
+        self.drop3 = nn.Dropout(0.3) 
+
+        self.conv4 = nn.Conv2d(128, 256, 1, 1) # output size = (W-F)/S + 1 = (26-1)/1 + 1 = 26 -- (256, 26, 26)
+        self.actv4 = nn.ReLU()
+        self.pool4 = nn.MaxPool2d(2)          # (256, 13, 13)
+        self.drop4 = nn.Dropout(0.4)
+
+        self.fc1 = nn.Linear(256*13*13, 1024)
+        self.actv5 = nn.ReLU()
+        self.drop5 = nn.Dropout(0.5)
+
+        self.fc2 = nn.Linear(1024, 1024)
+        self.actv6 = nn.ReLU()
+        self.drop6 = nn.Dropout(0.6)
+
         # finally, create 68*2 output channels (for the 68 keypoints)
-        self.fc2 = nn.Linear(256, 68*2)
+        self.fc3 = nn.Linear(1024, 68*2)
 
         
     def forward(self, x):
@@ -56,17 +52,17 @@ class Net(nn.Module):
         ## x is the input image and, as an example, here you may choose to include a pool/conv step:
         ## x = self.pool(F.relu(self.conv1(x)))
         
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
+        x = self.drop1(self.pool1(self.actv1(self.conv1(x))))
+        x = self.drop2(self.pool2(self.actv2(self.conv2(x))))
+        x = self.drop3(self.pool3(self.actv3(self.conv3(x))))
+        x = self.drop4(self.pool4(self.actv4(self.conv4(x))))
 
         # prep for linear layer
         # this line of code is the equivalent of Flatten in Keras
         x = x.view(x.size(0), -1)
-        
-        # two linear layers with dropout in between
-        x = F.relu(self.fc1(x))
-        x = self.fc1_drop(x)
-        x = self.fc2(x)
+        x = self.drop5(self.actv5(self.fc1(x)))
+        x = self.drop6(self.actv6(self.fc2(x))) 
+        x = self.fc3(x)
         
         # final output
         return x
