@@ -7,6 +7,7 @@ import torch.optim as optim
 
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 from data_load import Rescale, RandomCrop, Normalize, ToTensor
 from data_load import FacialKeypointsDataset
@@ -55,10 +56,10 @@ def net_sample_output(net, test_loader, device):
 		images = sample['image']
 		key_pts = sample['keypoints']
 
-		images, key_pts = images.to(device), key_pts.to(device)
-
 		# convert images to FloatTensors
-		# images = images.type(torch.FloatTensor)
+		images = images.type(torch.FloatTensor).cuda()
+
+		# images, key_pts = images.to(device), key_pts.to(device)
 
 		# forward pass to get net output
 		output_pts = net(images)
@@ -108,63 +109,88 @@ def visualize_output(test_images, test_outputs, gt_pts=None, batch_size=10):
 	plt.show()
 
 
-def train_net(device, n_epochs, net, train_loader, criterion, optimizer):
-    # prepare the net for training
-    net.train()
-    losses = []
+def train_net(device, n_epochs, net, train_loader, test_loader, criterion, optimizer):
+	train_losses = np.zeros(n_epochs)
+	test_losses = np.zeros(n_epochs)
+	net.train()
 
-    for epoch in range(n_epochs):  # loop over the dataset multiple times
-        
-        running_loss = 0.0
+	for epoch in range(n_epochs):  # loop over the dataset multiple times
+		train_loss = []
+		t0 = datetime.now()
 
-        # train on batches of data, assumes you already have train_loader
-        for batch_i, data in enumerate(train_loader):
-            # get the input images and their corresponding labels
-            images = data['image'].to(device)
-            key_pts = data['keypoints'].to(device)
+		# train on batches of data, assumes you already have train_loader
+		for batch_i, data in enumerate(train_loader):
+			images = data['image']
+			key_pts = data['keypoints']
 
-            # flatten pts
-            key_pts = key_pts.view(key_pts.size(0), -1)
+			# flatten pts
+			key_pts = key_pts.view(key_pts.size(0), -1)
 
-            # convert variables to floats for regression loss
-            key_pts = key_pts.type(torch.FloatTensor)
-            images = images.type(torch.FloatTensor)
+			# convert variables to floats for regression loss
+			key_pts = key_pts.type(torch.FloatTensor).cuda()
+			images = images.type(torch.FloatTensor).cuda()
 
-            # forward pass to get outputs
-            output_pts = net(images)
+			# move data to gpu
+			# images, key_pts = images.to(device), key_pts.to(device)
 
-            # calculate the loss between predicted and target keypoints
-            loss = criterion(output_pts, key_pts)
+			# forward pass to get outputs
+			output_pts = net(images)
 
-            # zero the parameter (weight) gradients
-            optimizer.zero_grad()
-            
-            # backward pass to calculate the weight gradients
-            loss.backward()
+			# calculate the loss between predicted and target keypoints
+			loss = criterion(output_pts, key_pts)
 
-            # update the weights
-            optimizer.step()
+			# zero the parameter (weight) gradients
+			optimizer.zero_grad()
+			
+			# backward pass to calculate the weight gradients
+			loss.backward()
 
-            # print loss statistics
-            # to convert loss into a scalar and add it to the running_loss, use .item()
-            running_loss += loss.item()
-            if batch_i % 10 == 9:    # print every 10 batches
-                print('Epoch: {}, Batch: {}, Avg. Loss: {}'.format(epoch + 1, batch_i+1, running_loss/1000))
-                running_loss = 0.0
-        losses.append(running_loss)
+			# update the weights
+			optimizer.step()
 
-    print('Finished Training')
-    return losses
+			train_loss.append(loss.item())
 
+			torch.cuda.empty_cache()
+
+		# save the train and test loss for this epoch
+		train_loss = np.mean(train_loss) 
+		
+		net.eval()
+		test_loss = []
+		for data in test_loader:
+			images = data['image']
+			key_pts = data['keypoints']
+			key_pts = key_pts.view(key_pts.size(0), -1)
+
+			images = images.type(torch.FloatTensor).cuda()
+			key_pts = key_pts.type(torch.FloatTensor).cuda()
+
+			# images, key_pts = images.to(device), key_pts.to(device)
+
+			outputs = net(images)
+			loss = criterion(outputs, key_pts)
+			test_loss.append(loss.item())
+			torch.cuda.empty_cache()
+		test_loss = np.mean(test_loss)
+
+		# Save losses
+		train_losses[epoch] = train_loss
+		test_losses[epoch] = test_loss
+
+		dt = datetime.now() - t0
+		print(f'Epoch {epoch+1}/{n_epochs}, Train Loss: {train_loss:.4f}, Test Loss: {test_loss:.4f}, Duration: {dt}')
+
+	print('Finished Training')
+	return train_losses, test_losses
 
 
 def main():
 	# instantiate the network
-	net = Net()
+	net = Net().cuda()
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-	print(device)
-	net.to(device)
-	print(net)
+	# print(device)
+	# net.to(device)
+	# print(net)
 
 	train_data, test_data = get_train_test_data()
 	train_loader, test_loader = create_dataloader(train_data, test_data)
@@ -176,7 +202,7 @@ def main():
 	print(test_images.data.size())
 	print(test_outputs.data.size())
 	print(gt_pts.size())
-	visualize_output(test_images, test_outputs, gt_pts)
+	# visualize_output(test_images, test_outputs, gt_pts)
 
 	# define the loss and optimization
 	learn_rate = 0.001
@@ -184,15 +210,29 @@ def main():
 	optimizer = optim.Adam(net.parameters(), lr=learn_rate)
 
 	# train your network
-	n_epochs = 100 
-	losses = train_net(device, n_epochs, net, train_loader, criterion, optimizer)
+	n_epochs = 500
+	train_losses, test_losses = train_net(device, n_epochs, net, train_loader, test_loader, criterion, optimizer)
+
+	model_dir = 'saved_models/'
+	model_name = 'keypoints_model_2.pt'
+
+	# after training, save your model parameters in the dir 'saved_models'
+	torch.save(net.state_dict(), model_dir+model_name)
 
 	plt.figure()
-	plt.plot(losses)
-	plt.grid()
+	plt.plot(train_losses, label='train loss')
+	plt.plot(test_losses, label='test loss')
 	plt.xlabel('Epoch')
 	plt.ylabel('Loss')
+	plt.legend()
+	plt.grid()
+	plt.show()
 
+	test_images, test_outputs, gt_pts = net_sample_output(net, test_loader, device)
+	visualize_output(test_images, test_outputs, gt_pts)
+
+	del net
+	torch.cuda.empty_cache()
 
 if __name__ == '__main__':
 	main()
