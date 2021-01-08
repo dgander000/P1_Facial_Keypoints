@@ -12,6 +12,12 @@ class Net(nn.Module):
 
     def __init__(self):
         super(Net, self).__init__()
+        
+        ## TODO: Define all the layers of this CNN, the only requirements are:
+        ## 1. This network takes in a square (same width and height), grayscale image as input
+        ## 2. It ends with a linear layer that represents the keypoints
+        ## it's suggested that you make this last layer output 136 values, 2 for each of the 68 keypoint (x, y) pairs
+        
 
         # Input size: 224 x 224
 
@@ -52,6 +58,8 @@ class Net(nn.Module):
         ## x is the input image and, as an example, here you may choose to include a pool/conv step:
         ## x = self.pool(F.relu(self.conv1(x)))
         
+        
+        # a modified x, having gone through all the layers of your model, should be returned
         x = self.drop1(self.pool1(self.actv1(self.conv1(x))))
         x = self.drop2(self.pool2(self.actv2(self.conv2(x))))
         x = self.drop3(self.pool3(self.actv3(self.conv3(x))))
