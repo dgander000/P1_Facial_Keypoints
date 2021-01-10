@@ -4,6 +4,13 @@
 
 # Facial Keypoint Detection
 
+## Resoures  
+
+[Facial Keypoints Detection: An Effort to Top the Kaggle Leaderboard](https://www.ischool.berkeley.edu/projects/2015/facial-keypoints-detection-effort-top-kaggle-leaderboard)    
+[Facial keypoints detection using Neural Network](http://cs231n.stanford.edu/reports/2016/pdfs/007_Report.pdf)  
+[Advice on how to improve CNNs](https://www.researchgate.net/post/Could_you_give_me_some_advices_about_how_to_improve_the_performance_of_Convolutional_Neural_Networks)   
+
+
 ## Project Overview
 
 In this project, you’ll combine your knowledge of computer vision techniques and deep learning architectures to build a facial keypoint detection system. Facial keypoints include points around the eyes, nose, and mouth on a face and are used in many applications. These applications include: facial tracking, facial pose recognition, facial filters, and emotion recognition. Your completed code should be able to look at any image, detect faces, and predict the locations of facial keypoints on each face; examples of these keypoints are displayed below.
